@@ -1,0 +1,29 @@
+{
+  "name": "aws-lambda-prune",
+  "version": "1.0.0",
+  "description": "Prune old lambda functions",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "prune": "./bin/prune"
+  },
+  "keywords": [
+    "prune",
+    "aws",
+    "lambda",
+    "remove",
+    "delete"
+  ],
+  "author": "Andrew Peebles",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/peebles/aws-lambda-prune.git"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.0.0",
+    "aws-sdk": "^2.4.7"
+  }
+}

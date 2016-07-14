@@ -1,0 +1,93 @@
+#!/usr/bin/env node
+
+'use strict';
+
+var AWS = require( 'aws-sdk' );
+var async = require( 'async' );
+
+var accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+var secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+var region = process.env.AWS_REGION;
+
+function exit( err ) {
+  if ( err ) console.log( err );
+  process.exit( err ? 1 : 0 );
+}
+
+var keep = 3;
+var functionName;
+
+var Usage = [ process.argv[1],
+	      "[ --keep num ]",
+	      "functionName" ].join( ' ' );
+
+var arg;
+process.argv.shift(); process.argv.shift();
+while( arg = process.argv.shift() ) {
+  if ( arg == '--help' ) { console.log( Usage ); exit(); }
+  if ( arg == '--keep' ) { keep = process.argv.shift(); }
+  functionName = arg;
+}
+
+if ( ! functionName ) {
+  console.log( Usage );
+  exit();
+}
+
+if ( ! ( accessKeyId && secretAccessKey && region ) ) {
+  console.log( 'One or more of the following environment variables are not set.  All three must be set.' );
+  console.log( '  AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION' );
+  exit();
+}
+
+var lambda = new AWS.Lambda({
+  accessKeyId: accessKeyId,
+  secretAccessKey: secretAccessKey,
+  region: region,
+});
+
+lambda.listVersionsByFunction({ FunctionName: functionName }, function( err, data ) {
+  if ( err ) exit( err );
+
+  var sorted = data.Versions.sort( function( v1, v2 ) {
+    if ( v1.LastModified < v2.LastModified ) {
+      return 1;
+    } else {
+      if( v1.LastModified > v2.LastModified ) {
+        return -1;
+      } else {
+        return 0;
+      }
+    }
+  });
+
+  lambda.listAliases({ FunctionName: functionName }, function( err, data ) {
+    if ( err ) exit( err );
+
+    // keep any version that is pointed to by an alias
+    var keepVersions = data.Aliases.map(function(a){
+      return a.FunctionVersion;
+    });
+
+    sorted.forEach( function( v ) {
+      if ( (v.Version == '$LATEST') || (keepVersions.indexOf( v.Version ) >= 0) ) {
+	v.KEEP = true;
+      }
+      else if ( keep > 0 ) {
+	v.KEEP = true;
+	keep--;
+      }
+    });
+
+    async.eachSeries( sorted, function( v, cb ) {
+      if ( v.KEEP ) {
+	console.log( 'Keeping', v.Version );
+	return cb();
+      }
+      else {
+	lambda.deleteFunction({ FunctionName: functionName, Qualifier: v.Version }, cb );
+      }
+    }, exit );
+
+  });
+});
